@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: gbot
+    env: node
+    buildCommand: npm install
+    startCommand: node index.js
+    region: oregon
+    plan: free
+    runtime: docker
+    dockerfilePath: Dockerfile
+
