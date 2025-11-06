@@ -18,36 +18,22 @@ async function startBot() {
 
     // --- Configuraciones ---
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
-    const pairingCodeNumber = "50661723170"; // TU NÚMERO DE TELÉFONO
 
     // --- Inicia la conexión con WhatsApp ---
     const sock = makeWASocket({
         logger: pino({ level: 'silent' }), 
         auth: state,
-        qrMethod: 'code', // Forzar el uso del código de 8 dígitos
+        qrMethod: 'scan' // ← esto fuerza QR normal
     });
     
-    // **Esperar 3 segundos para asegurar la conexión**
-    await delay(3000); 
-
-    // **LÓGICA DE VINCULACIÓN**
-    if (!sock.authState.creds.registered) {
-        if (!pairingCodeNumber) {
-            console.error('ERROR: El número de vinculación está vacío.');
-            return;
-        }
-        
-        const code = await sock.requestPairingCode(pairingCodeNumber); 
-        console.log('----------------------------------------------------');
-        console.log(`🔒 ¡CÓDIGO DE VINCULACIÓN DE 8 DÍGITOS GENERADO!`);
-        console.log(`   Ingresa este código en tu teléfono lo antes posible:`);
-        console.log(`   CÓDIGO: ${code}`);
-        console.log('----------------------------------------------------');
-    }
-
     // --- Manejador de conexión ---
     sock.ev.on('connection.update', (update) => {
-        const { connection, lastDisconnect } = update;
+        const { connection, lastDisconnect, qr } = update;
+
+        if (qr) {
+            console.log("📌 Escanea este QR con tu WhatsApp:");
+            console.log(qr);
+        }
 
         if (connection === 'close') {
             const shouldReconnect = (lastDisconnect.error)?.output?.statusCode !== DisconnectReason.loggedOut;
@@ -116,10 +102,8 @@ async function startBot() {
                     let ffmpegCommand;
                     
                     if (mime.includes('image')) {
-                        // **SOLUCIÓN:** Usar -vframes 1 y filtros de relleno para crear WebP estático
                         ffmpegCommand = `ffmpeg -i "${inputPath}" -vframes 1 -filter:v scale=512:512:force_original_aspect_ratio=decrease,format=rgba,pad=512:512:-1:-1:color=0x00000000 -vcodec libwebp -y "${outputPath}"`;
                     } else if (mime.includes('video')) {
-                        // Comando para video/GIF animado
                         ffmpegCommand = `ffmpeg -i "${inputPath}" -vcodec libwebp -filter:v scale=512:512,fps=10 -ss 00:00:00 -t 00:00:10 -y "${outputPath}"`;
                     } else {
                          return reply('❌ Formato de archivo no compatible con stickers.');
@@ -130,8 +114,7 @@ async function startBot() {
                         exec(ffmpegCommand, (error, stdout, stderr) => {
                             if (error) {
                                 console.error(`FFmpeg error: ${stderr}`);
-                                // Muestra el output detallado de FFmpeg para ayudar en el diagnóstico de errores complejos.
-                                return reject(new Error(`❌ Error al procesar el archivo. Detalle: ${stderr.substring(0, 150)}...`));
+                                return reject(new Error(`❌ Error al procesar el archivo.`));
                             }
                             resolve();
                         });
@@ -152,7 +135,6 @@ async function startBot() {
                 }
             }
             break;
-            // ▲▲▲ FIN COMANDO STICKER CORREGIDO ▲▲▲
         }
     });
 }
